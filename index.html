@@ -46,6 +46,7 @@ document.addEventListener("keydown", e=>keys[e.key.toLowerCase()]=true);
 document.addEventListener("keyup", e=>keys[e.key.toLowerCase()]=false);
 
 let player, level, score, gameState, attackTimer, particles, boss, shake, flash;
+let bossDying = false;
 
 function init(){
 player = {x:50,y:300,dx:0,dy:0,jumps:0,hp:100};
@@ -57,15 +58,27 @@ particles = [];
 boss = {x:600,y:300,w:40,h:40,hp:60,dir:1};
 shake = 0;
 flash = 0;
+bossDying = false;
 }
 
 // MAIN MENU ANIMATION
 let menuAnim = 0;
+let flashTimer = 0;
 function animateMenu(){
 menuAnim += 0.05;
 document.getElementById("title").style.transform = `scale(${1+0.05*Math.sin(menuAnim)})`;
 document.getElementById("startBtn").style.transform = `translateY(${2*Math.sin(menuAnim)}px)`;
 document.getElementById("settingsBtn").style.transform = `translateY(${2*Math.sin(menuAnim+1)}px)`;
+
+// Red line flash occasionally
+flashTimer += Math.random() < 0.05 ? 1 : 0;
+if(flashTimer>0){
+ctx.clearRect(0,0,800,400);
+ctx.fillStyle="red";
+ctx.fillRect(0,Math.random()*400,800,3);
+flashTimer--;
+}
+
 if(gameState==="menu") requestAnimationFrame(animateMenu);
 }
 
@@ -92,7 +105,6 @@ s.style.display = s.style.display==="block" ? "none" : "block";
 
 const gravity = 0.5;
 
-// LEVELS
 const levels = [
 {p:[[0,380,800,20,"n"],[150,320,120,10,"n"],[350,260,120,10,"n"]],e:[{x:400,y:360}],c:[[180,280],[380,220]],g:[720,220]},
 {p:[[0,380,800,20,"n"],[100,300,80,10,"b"],[300,240,80,10,"n"],[500,180,80,10,"n"]],e:[{x:520,y:160}],c:[[120,260]],g:[700,140]},
@@ -150,7 +162,7 @@ if(t==="b") player.dy=-14;
 });
 }
 
-// enemies: follow player X/Y + glow
+// enemies follow player
 if(L.e){
 L.e.forEach((e,i)=>{
 let dx = player.x - e.x;
@@ -173,7 +185,7 @@ score+=20;
 }
 
 // boss
-if(L.boss){
+if(L.boss && !bossDying){
 boss.x += boss.dir*2;
 if(boss.x<100||boss.x>700) boss.dir*=-1;
 
@@ -186,9 +198,12 @@ spawnParticles(player.x,player.y,"red");
 if(attackTimer>0 && Math.abs(player.x-boss.x)<50){
 boss.hp--;
 spawnParticles(boss.x,boss.y,"orange");
+if(boss.hp<=0){
+bossDying = true;
+shake = 30; // massive shake
+setTimeout(()=>endGame("YOU WIN!"),10000); // 10s dramatic pause
 }
-
-if(boss.hp<=0) endGame("YOU WIN!");
+}
 }
 
 // coins
@@ -205,7 +220,7 @@ return true;
 
 // goal
 if(L.g){
-if(Math.abs(player.x-L.g[0])<20 && Math.abs(player.y-L.g[1])<20){
+if(Math.abs(player.x-L.g[0])<20 && Math.abs(player.y-L.g[1])<20 && !L.boss){
 level++; player.x=50; player.y=300;
 }
 }
@@ -217,16 +232,14 @@ p.x+=p.dx; p.y+=p.dy; p.life--;
 });
 particles = particles.filter(p=>p.life>0);
 
-if(shake>0) shake--;
+if(shake>0 && !bossDying) shake--;
 if(flash>0) flash--;
 }
 
 function draw(){
 ctx.save();
 
-if(shake>0){
-ctx.translate(Math.random()*shake,Math.random()*shake);
-}
+if(shake>0) ctx.translate(Math.random()*shake,Math.random()*shake);
 
 // flash red
 if(flash>0){
